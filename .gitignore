@@ -1,0 +1,20 @@
+*.md 
+!README.md
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyc
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+venv/
+output/
+data/
