@@ -12,6 +12,7 @@ from src import (
     MovieUploadInfo,
     MovieDataResponse,
     MovieProcessingReport,
+    MovieCache
 )
 from data_pipeline import create_cleaning_report, process_data, validate_dataframe
 from src.storage import MOVIE_COLUMNS
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Data Processing API", version="1.0.0")
 app.middleware("http")(log_requests)
 storage = MovieStorage()
+cache = MovieCache()
 
 @app.get("/health", response_model=HealthResponse)
 def health_check():
@@ -79,6 +81,7 @@ async def upload_movies(file: UploadFile = File(...)):
         )
     df = df[MOVIE_COLUMNS] 
     storage.save(df)
+    cache.invalidate()
     no_of_rows = len(df)
     logger.info(f"Uploaded file: {filename}, saved rows: {no_of_rows}")
     response = MovieUploadInfo(
@@ -91,13 +94,19 @@ async def upload_movies(file: UploadFile = File(...)):
 
 @app.get("/movies", response_model=MovieDataResponse)
 def get_movies(limit: int = Query(default=100, ge=1)):
+    cached_response = cache.get(limit)
+    if cached_response is not None:
+        logger.info(f"Cache hit for movies: limit={limit}")
+        return cached_response
     records = storage.select_columns(MOVIE_COLUMNS, limit)
     total_rows = storage.count_movies()
-    returned_rows = len(records)
-    logger.info(f"Retrieved movies: returned_rows={returned_rows}, total_rows={total_rows}")
+
     response = {}
     response["data"] = records
     response["total_rows"] = total_rows
+    cache.set(limit, response)
+    returned_rows = len(records)
+    logger.info(f"Retrieved movies: returned_rows={returned_rows}")
     return response
 
 @app.get("/movies/search", response_model=list[dict])
@@ -152,6 +161,7 @@ def process_movies(config: ProcessConfig):
         if col not in df_clean.columns:
             df_clean[col] = None
     storage.save(df_clean)
+    cache.invalidate()
     logger.info(
         f"Processed movies: validation_rows_removed={validation_rows_removed}, "
         f"rows_before={report['rows_before']}, rows_after={report['rows_after']}"
