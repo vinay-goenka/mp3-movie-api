@@ -18,7 +18,7 @@ def initialize_database(db_path):
     try:
         sql_statement = """
         CREATE TABLE IF NOT EXISTS movies (
-            id INTEGER PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT,
             release_year INTEGER,
             rating REAL,
